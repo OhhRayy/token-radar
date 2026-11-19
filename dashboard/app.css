@@ -1,5 +1,4 @@
-/* Token Radar's theme: one light canvas, one ink, one emerald accent, one amber mark for the
-   watchlist. Everything else is spacing, a hairline and a type step. */
+/* Token Radar's theme: one light canvas, one ink, one emerald accent, one amber watchlist mark. */
 :root {
   --canvas: #eef2ef;
   --surface: #ffffff;

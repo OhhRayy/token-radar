@@ -1,12 +1,5 @@
-// Token Radar's dashboard, model radar-2. It reads window.RADAR (dashboard/data.js, written by
-// main.ts from the same board) and renders the ranked board, a filterable table, a per-protocol
-// detail drawer with the model's own inputs and the protocol's farm plan. No network: every byte it
-// shows is in data.js.
-//
-// Rows are compact arrays: [rank, slug, name, category index, chain indices, TVL, 7d change, age
-// in days, implied value, on the watchlist]. Categories and chains are listed once, in
-// DATA.categories and DATA.chains. The page recomputes the model's multipliers from these figures,
-// the category ratios and the model constants, and checks the implied value board.json carries.
+// Token Radar's dashboard, model radar-3: reads window.RADAR and renders the ranked board, a
+// filterable table and a per-protocol detail drawer with the model and the farm plan. No network.
 (function () {
   'use strict';
 
@@ -47,8 +40,7 @@
   var BY_SLUG = {};
   ROWS.forEach(function (r) { BY_SLUG[r.slug] = r; });
 
-  /** The category ratio of one row: its category's multiple, or the global median when the
-   *  category has too few live tokens to carry one. */
+  /** The category ratio of one row: its category's multiple, or the global median. */
   function ratioOf(row) {
     var found = null;
     for (var i = 0; i < DATA.ratios.length; i++) if (DATA.ratios[i].category === row.category) { found = DATA.ratios[i]; break; }
@@ -71,8 +63,7 @@
     return 1 + m.chain_step * Math.min(Math.max(row.chains.length - 1, 0), m.chain_max);
   }
 
-  // The model in one function: the page recomputes a row from the snapshot figures and checks the
-  // number board.json carries, so the page's code and the board's data are visibly the same arithmetic.
+  // The model in one function: the page recomputes a row and checks the number board.json carries.
   function impliedOf(row) {
     return Math.max(1, Math.round(row.tvl_usd * ratioOf(row).ratio * growthMultOf(row) * maturityMultOf(row) * chainMultOf(row)));
   }
@@ -98,8 +89,7 @@
     return node;
   }
 
-  // The farm plan is the same derivation main.ts writes to board.json: category, chains, TVL and age
-  // decide the action, the capital, the hold and every cost and time. No name is special-cased.
+  // The farm plan is the same derivation main.ts writes to board.json. No name is special-cased.
   function chainOf(p) { return p.chains && p.chains.length > 0 ? p.chains[0] : 'its main chain'; }
   function capitalFor(p) {
     if (p.tvl_usd >= 5e9) return 250;
@@ -168,6 +158,27 @@
     if (c.indexOf('gaming') >= 0) return 'Play a second session a week later and keep the earned asset in the farm wallet.';
     return 'Make a second, smaller deposit of $' + Math.round(capital / 2) + ' into ' + name + ' on ' + chain + ' a week later.';
   }
+  function weeklyActionFor(p, capital, chain) {
+    var c = (p.category || '').toLowerCase();
+    var name = p.name;
+    if (c.indexOf('lend') >= 0 || c.indexOf('cdp') >= 0 || c.indexOf('collateral') >= 0) return 'Top up the supply on ' + name + ' by $10 once a week, or make one small borrow, so the wallet stays active.';
+    if (c.indexOf('dex') >= 0 || c.indexOf('leveraged farm') >= 0) return 'Make one swap of at least $10 through ' + name + "'s main pool on " + chain + ' once a week, so the wallet shows trading volume.';
+    if (c.indexOf('yield') >= 0) return "Check " + name + "'s strategy rewards once a week and harvest any amount above $5 back into the same vault.";
+    if (c.indexOf('bridge') >= 0) return 'Bridge a small amount through ' + name + ' once a week, so the wallet shows a steady flow.';
+    if (c.indexOf('staking') >= 0 || c.indexOf('restak') >= 0) return 'Check the staking rewards on ' + name + ' once a week and restake anything the position earned.';
+    if (c.indexOf('perpetual') >= 0 || c.indexOf('derivative') >= 0 || c.indexOf('options') >= 0) return 'Open or close one small position on ' + name + ' once a week, so the activity stays current.';
+    if (c.indexOf('prediction') >= 0) return 'Place one small market position on ' + name + ' once a week.';
+    if (c.indexOf('curator') >= 0 || c.indexOf('allocator') >= 0) return 'Check the ' + name + " vault's performance once a week and top it up by $10 when it grows.";
+    if (c.indexOf('stable') >= 0) return 'Mint or redeem a small amount of the stable asset through ' + name + ' once a week.';
+    if (c.indexOf('rwa') >= 0) return 'Check the yield accrual on the ' + name + ' asset once a week and keep the holding past each payout.';
+    if (c.indexOf('insurance') >= 0) return 'Check the ' + name + ' cover once a week so the policy never lapses unnoticed.';
+    if (c.indexOf('index') >= 0) return 'Check the ' + name + ' index weights once a week and rebalance only when one weight drifts far.';
+    if (c.indexOf('privacy') >= 0) return 'Check the shielded balance on ' + name + ' once a week and make one shielded transfer a month.';
+    if (c.indexOf('ai agent') >= 0 || c.indexOf('ai agents') >= 0) return 'Run one small paid task through ' + name + ' once a week and keep the receipt.';
+    if (c.indexOf('nft') >= 0) return 'Check the ' + name + ' collection floor once a week and keep the NFT listed or held as the plan says.';
+    if (c.indexOf('gaming') >= 0) return 'Play one short session on ' + name + ' once a week and keep the earned asset in the farm wallet.';
+    return 'Make one small deposit of $10 into ' + name + ' on ' + chain + ' once a week, so the wallet stays active.';
+  }
   function stepText(step) {
     var s = step.text + ' Cost: ' + step.cost + '. Time: ' + step.time + '.';
     if (s.length > 600) s = s.slice(0, 596) + '...';
@@ -180,13 +191,13 @@
     var hold = holdDaysFor(p.age_days);
     var gas = gasFor(p);
     return [
-      { text: 'Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline.', cost: 'nothing but the wallet', time: '5 minutes' },
+      { text: 'Use a fresh wallet on ' + chain + ' that holds only the funds you plan to farm, and keep its seed phrase offline.', cost: 'nothing but the wallet', time: '5 minutes' },
       { text: actionFor(p, capital, chain), cost: '$' + capital + ' of capital and ' + gas.setup, time: '15 minutes to set up' },
       { text: secondActionFor(p, capital, chain), cost: 'about $' + Math.round(capital / 2) + ' of capital and ' + gas.setup, time: '10 minutes' },
-      { text: 'Make one qualifying action each week, such as a deposit, a borrow, a swap or a vote.', cost: gas.weekly, time: '10 minutes a week' },
+      { text: weeklyActionFor(p, capital, chain), cost: gas.weekly, time: '10 minutes a week' },
       { text: 'Hold the position for at least ' + hold + ' days so the activity is counted in more than one snapshot.', cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
-      { text: "Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes.", cost: 'no fee to check, and never pay to claim', time: '10 minutes' },
-      { text: 'Write the wallet, the dates and every transaction in a farm log so you can repeat the position or unwind it.', cost: 'nothing but the log', time: '5 minutes' }
+      { text: "Before you withdraw, open " + p.name + "'s own points or rewards page and claim only from the link it publishes.", cost: 'no fee to check, and never pay to claim', time: '10 minutes' },
+      { text: 'Write the ' + p.name + ' position — the wallet, the dates and every transaction on ' + chain + ' — in a farm log so you can repeat the position or unwind it.', cost: 'nothing but the log', time: '5 minutes' }
     ].map(stepText);
   }
 
