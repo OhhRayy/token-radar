@@ -1,4 +1,4 @@
-// Token Radar's dashboard, model radar-3: reads window.RADAR and renders the ranked board, a
+// Token Radar's dashboard, model radar-4: reads window.RADAR and renders the ranked board, a
 // filterable table and a per-protocol detail drawer with the model and the farm plan. No network.
 (function () {
   'use strict';
@@ -185,17 +185,23 @@
     if (s.length < 20) s = s + " Hold the position and check the protocol's own page.";
     return s;
   }
+  function holdReason(p, hold) {
+    var ageText = (p.age_days === null || p.age_days === undefined) ? 'an unknown age' : p.age_days + ' days';
+    var growthText = (p.change_7d === null || p.change_7d === undefined) ? 'by an unknown amount' : (p.change_7d >= 0 ? '+' : '') + p.change_7d.toFixed(1) + '%';
+    return 'Hold the position for at least ' + hold + ' days so the activity is counted in more than one snapshot: ' +
+      p.name + ' has run ' + ageText + ' with no token and its TVL moved ' + growthText + ' in 7 days, so a quick in-and-out leaves no trace.';
+  }
   function farmSteps(p) {
     var chain = chainOf(p);
     var capital = capitalFor(p);
     var hold = holdDaysFor(p.age_days);
     var gas = gasFor(p);
     return [
-      { text: 'Use a fresh wallet on ' + chain + ' that holds only the funds you plan to farm, and keep its seed phrase offline.', cost: 'nothing but the wallet', time: '5 minutes' },
+      { text: 'Use a fresh wallet on ' + chain + ', funded with the $' + capital + ' you plan to farm with, and keep its seed phrase offline.', cost: 'nothing but the wallet', time: '5 minutes' },
       { text: actionFor(p, capital, chain), cost: '$' + capital + ' of capital and ' + gas.setup, time: '15 minutes to set up' },
       { text: secondActionFor(p, capital, chain), cost: 'about $' + Math.round(capital / 2) + ' of capital and ' + gas.setup, time: '10 minutes' },
       { text: weeklyActionFor(p, capital, chain), cost: gas.weekly, time: '10 minutes a week' },
-      { text: 'Hold the position for at least ' + hold + ' days so the activity is counted in more than one snapshot.', cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
+      { text: holdReason(p, hold), cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
       { text: "Before you withdraw, open " + p.name + "'s own points or rewards page and claim only from the link it publishes.", cost: 'no fee to check, and never pay to claim', time: '10 minutes' },
       { text: 'Write the ' + p.name + ' position — the wallet, the dates and every transaction on ' + chain + ' — in a farm log so you can repeat the position or unwind it.', cost: 'nothing but the log', time: '5 minutes' }
     ].map(stepText);
@@ -261,7 +267,7 @@
     return el('section', { class: 'lede' },
       el('div', null,
         el('h1', { text: DATA.watchlist_size + ' watchlist protocols, ranked by implied value' }),
-        el('p', { text: 'The watchlist is the floor: every protocol with at least $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL and no token on record. The early radar adds ' + DATA.early_size + ' pre-token protocols below that floor, every one the snapshot carries. Implied value is a model, not a promise: it says what a launch would be worth if the protocol kept running as it does, not whether one comes.' })
+        el('p', { text: 'The watchlist is the floor: every protocol with at least $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL and no token on record. The early radar adds ' + DATA.early_size + ' pre-token protocols below that floor. Bridges, staking products and wrapped or versioned names are set aside as records, not launches of their own. Implied value is a model, not a promise: it says what a launch would be worth if the protocol kept running as it does, not whether one comes.' })
       ),
       el('div', { class: 'facts' },
         el('div', { class: 'fact' }, el('span', { text: 'Watchlist covered' }), el('b', { text: DATA.watchlist_size + ' / ' + DATA.watchlist_size })),

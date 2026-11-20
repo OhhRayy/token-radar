@@ -24,7 +24,7 @@ Then open `out/dashboard/index.html`. The program reads a DefiLlama protocol sna
 
 ## Verification
 
-Fresh local run 18 Nov 2026: `main.ts` scored 758 protocols (40 on the watchlist) into 226 board rows; `check_gate.ts` — **8/8 rows pass** (dashboard files, board file, sorted by value, watchlist 40/40, farm steps, screenshots, dossier byte-identical, data.js = board.json).
+Fresh local run 20 Nov 2026 (model radar-4): `main.ts` scored 758 protocols (40 on the watchlist) into 178 board rows — the 48 bridge, liquid-staking/restaking and wrapped-name records radar-3 ranked as launches are now set aside, not ranked; `check_gate.ts` — **8/8 rows pass** (dashboard files, board file, sorted by value, watchlist 40/40, farm steps, screenshots, dossier byte-identical, data.js = board.json). Farm plans: all 7 steps unique per protocol on steps 4–7 (178/178), hold step 178/178 (was 7/226 in radar-3). Two runs byte-identical (board.json, data.js, dossier.json).
 
 ---
 

@@ -1,4 +1,4 @@
-// The token radar's model, radar-2: one snapshot of the protocol universe in, one ranked board out.
+// The token radar's model, radar-4: one snapshot of the protocol universe in, one ranked board out.
 //
 // The board covers every slug in the snapshot's watchlist (the floor, never a ceiling) and adds
 // every rankable pre-token protocol below the watchlist floor: the early rows the radar exists to
@@ -7,6 +7,9 @@
 // are counted apart and never ranked as launches of their own: their token already trades through
 // another protocol. The live-token protocols are kept apart too and shown as the market's own values,
 // never mixed into the ranked board: they are the cohort the model's multiples come from.
+// Radar-4 fixes radar-3's early loop, which ranked 48 such products (bridges, liquid-staking and
+// restaking records, wrapped/staked names, one exchange product) as launches of their own even
+// though the watchlist's own rule and this file's exclusion rule both set them aside.
 //
 // Implied value follows only from the snapshot's own figures, through one function of TVL, the
 // protocol's category, its seven-day growth, its age with no token, and how many chains it runs on:
@@ -85,7 +88,7 @@ export const MODEL: ModelConstants = {
 };
 
 /** The model's version label: the dashboard names it. */
-export const MODEL_VERSION = 'radar-3';
+export const MODEL_VERSION = 'radar-4';
 
 /** How many live-token protocols the Live token view carries, by market cap. */
 export const LIVE_ROWS = 12;
@@ -215,9 +218,12 @@ export function isPreToken(p: SnapshotProtocol): boolean {
   return p.mcap_usd === null && p.gecko_id === null && p.symbol === null;
 }
 
-/** Whether a protocol is one the board may rank: pre-token, not an exchange, not a versioned pool. */
+/** Whether a protocol is one the board may rank: pre-token and set aside by no exclusion rule —
+ *  not an exchange, not a versioned pool, not a bridge, staking or wrapped product of a token
+ *  that already trades. The watchlist's own rule and this function are the same rule, so a
+ *  watchlist row always passes and an early row passes only when it is a launch of its own. */
 export function isRankable(p: SnapshotProtocol): boolean {
-  return isPreToken(p) && p.category !== 'CEX' && !VERSIONED.test(p.name);
+  return exclusionReason(p) === null;
 }
 
 /** The reason a pre-token protocol is set aside instead of ranked, or null when it is rankable. */
@@ -414,11 +420,23 @@ function weeklyActionFor(p: SnapshotProtocol, capital: number, chain: string): s
   return `Make one small deposit of $10 into ${name} on ${chain} once a week, so the wallet stays active.`;
 }
 
+/** How long the hold lasts, and why this protocol earns that window: its age with no token
+ *  and its 7-day TVL move, both from its own record. */
+function holdReason(p: SnapshotProtocol, age: number | null, hold: number): string {
+  const ageText = age === null ? 'an unknown age' : `${age} days`;
+  const growthText =
+    p.change_7d === null ? 'by an unknown amount' : `${p.change_7d >= 0 ? '+' : ''}${p.change_7d.toFixed(1)}%`;
+  return (
+    `Hold the position for at least ${hold} days so the activity is counted in more than one snapshot: ` +
+    `${p.name} has run ${ageText} with no token and its TVL moved ${growthText} in 7 days, so a quick in-and-out leaves no trace.`
+  );
+}
+
 /**
  * A protocol's farm plan: seven steps, each an action with a cost and a time. The plan is derived
- * from the protocol's own record (category, chains, TVL, age), never from a hand-written list of names:
- * the wallet step names its chain, the two positions and the weekly action each use the category's
- * own verb, the claim step names the protocol, and the log step records its position.
+ * from the protocol's own record (category, chains, TVL, age, 7-day growth), never from a hand-written list of names:
+ * the wallet step names its chain and the capital it must hold, the two positions and the weekly action each use the category's
+ * own verb, the hold step states the protocol's own age and TVL move, the claim step names the protocol, and the log step records its position.
  */
 export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const chain = chainOf(p);
@@ -427,7 +445,7 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const gas = gasFor(p);
   return [
     {
-      text: `Use a fresh wallet on ${chain} that holds only the funds you plan to farm, and keep its seed phrase offline.`,
+      text: `Use a fresh wallet on ${chain}, funded with the $${capital} you plan to farm with, and keep its seed phrase offline.`,
       cost: 'nothing but the wallet',
       time: '5 minutes',
     },
@@ -447,7 +465,7 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
       time: '10 minutes a week',
     },
     {
-      text: `Hold the position for at least ${hold} days so the activity is counted in more than one snapshot.`,
+      text: holdReason(p, age, hold),
       cost: `the $${capital} stays in the position`,
       time: `${hold} days`,
     },
@@ -498,7 +516,9 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): {
     if (p !== undefined) chosen.set(slug, p);
   }
   // The early radar: every rankable pre-token protocol below the watchlist floor. Never a replacement
-  // for a watchlist row: a chosen protocol stays chosen.
+  // for a watchlist row: a chosen protocol stays chosen. Rankable here is the exclusion rule itself,
+  // so a bridge, staking or wrapped product below the floor is set aside with the rest, never ranked
+  // as a launch of its own.
   for (const p of snapshot.protocols) {
     if (!chosen.has(p.slug) && isRankable(p) && p.tvl_usd < snapshot.floor_usd) chosen.set(p.slug, p);
   }
